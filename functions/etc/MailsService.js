@@ -1,19 +1,19 @@
-const functions = require('firebase-functions');
 const nodemailer = require('nodemailer');
-
-// const { sendCodeEmail } = require('./etc/MailsService');
 
 const APP_NAME = 'test_pau';
 
-// -_- Moved this here utill syntax error is resolved!
-function sendCodeEmail(recipientEmail, recipientName, callback = null) {
-  const gmailEmail = functions.config().gmail.email;
-  const gmailPassword = functions.config().gmail.password;
+exports.sendCodeEmail = (
+  senderGmail,
+  senderPassword,
+  recipientEmail,
+  recipientName,
+  callback = null,
+) => {
   const mailTransport = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: gmailEmail,
-      pass: gmailPassword,
+      user: senderGmail,
+      pass: senderPassword,
     },
   });
   const mailOptions = {
@@ -36,15 +36,4 @@ function sendCodeEmail(recipientEmail, recipientName, callback = null) {
     }
     if (callback) callback(feedBackMsg);
   });
-}
-
-exports.helloWorld = functions.https.onRequest((req, res) => {
-  res.send(JSON.stringify(req.query));
-});
-exports.sendCodeEmail = functions.https.onRequest((req, res) => {
-  const { mail, name } = req.query;
-  if (!mail) return res.send('No mail specified');
-
-  sendCodeEmail(mail, name, feedBack => res.send(feedBack));
-  return res.send('Sending email...');
-});
+};
