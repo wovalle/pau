@@ -13,16 +13,35 @@ const commands = {
 
 const commandIsValid = (command, message) => {
     return get(message, 'entities.0.type') === 'bot_command' && commands[command];
-}
+};
 
 exports.helloWorld = functions.https.onRequest((req, res) => {
     const { message } = req.body;
+    const messageText = get(message, 'text', '').slice(1);
+    const chatId = get(message, 'chat.id', null);
 
-    if (!commandIsValid(message.text.slice(1), message)) {
-        bot.sendMessage(message.chat.id, `Can't understand text "${message.text}", use /help to see available commands`);
-    } else {
-        bot.sendMessage(message.chat.id, `Command "${message.text}", valid`);
+    if (req.method !== 'POST' || !chatId) {
+        return res.status(403).send('Forbidden');
     }
 
-    res.send('Hello world');
+    if (commandIsValid(messageText, message)) {
+        const telegramEntity = message.entities[0];
+        const command = messageText.slice(telegramEntity.offset, telegramEntity.length);
+
+        switch (command) {
+            case commands.login:
+                loginHandler(message);
+                break;
+            default:
+                bot.sendMessage(chatId, `Command "${message.text}", valid but is not handled yet.`);
+        }
+    } else {
+        bot.sendMessage(chatId, `Can't understand text "${message.text}", use /help to see available commands`);
+    }
+
+    return res.sendStatus(200);
 });
+
+const loginHandler = (message) => {
+    bot.sendMessage(message.chat.id, `Login is not handled yet.`);
+};
