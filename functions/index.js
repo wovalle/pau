@@ -1,7 +1,9 @@
 const functions = require('firebase-functions');
+const admin = require('firebase-admin');
 const TelegramBot = require('node-telegram-bot-api');
 const get = require('lodash.get');
 
+admin.initializeApp(functions.config().firebase);
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN);
 
 const commands = {
@@ -11,37 +13,65 @@ const commands = {
     help: 'help',
 };
 
-const commandIsValid = (command, message) => {
-    return get(message, 'entities.0.type') === 'bot_command' && commands[command];
-};
+exports.telegramHook = functions.https.onRequest((req, res) => {
+    const message = parseTelegramMessage(req.body.message);
 
-exports.helloWorld = functions.https.onRequest((req, res) => {
-    const { message } = req.body;
-    const messageText = get(message, 'text', '').slice(1);
-    const chatId = get(message, 'chat.id', null);
-
-    if (req.method !== 'POST' || !chatId) {
+    if (req.method !== 'POST' || !message.parsed.chatId) {
         return res.status(403).send('Forbidden');
     }
 
-    if (commandIsValid(messageText, message)) {
-        const telegramEntity = message.entities[0];
-        const command = messageText.slice(telegramEntity.offset, telegramEntity.length);
-
-        switch (command) {
+    if (message.parsed.isBotCommand) {
+        switch (message.parsed.command) {
             case commands.login:
-                loginHandler(message);
+                loginHandler(message, { bot });
                 break;
             default:
-                bot.sendMessage(chatId, `Command "${message.text}", valid but is not handled yet.`);
+                bot.sendMessage(message.parsed.chatId, `Command "${message.text}" is not valid.`);
         }
-    } else {
-        bot.sendMessage(chatId, `Can't understand text "${message.text}", use /help to see available commands`);
-    }
 
-    return res.sendStatus(200);
+        return res.sendStatus(200);
+    } else {
+        bot.sendMessage(message.parsed.chatId, `Can't understand text "${message.text}", use /help to see available commands`);
+        return res.sendStatus(400);
+    }
 });
 
-const loginHandler = (message) => {
-    bot.sendMessage(message.chat.id, `Login is not handled yet.`);
+const parseTelegramMessage = (message) => {
+    const entity = get(message, 'entities.0', { offset: 0, length: 0 });
+    const text = get(message, 'text', '').slice(1);
+    return Object.assign(
+        message,
+        {
+            parsed: {
+                text,
+                isBotCommand: get(entity, 'type') === 'bot_command',
+                command: text.slice(entity.offset, entity.length).trim(),
+                chatId: get(message, 'chat.id')
+            }
+        }
+    );
+}
+
+const loginHandler = (message, { bot }) => {
+    const matchSchoolId = /\d{8}/.exec(message.parsed.text);
+
+    if (!matchSchoolId) {
+        bot.sendMessage(message.parsed.chatId, `Invalid school id provided.`);
+        return;
+    }
+    const studentId = message.parsed.text.slice(matchSchoolId.index, matchSchoolId.index + 8).trim();
+
+    admin.database().ref(`/students/${studentId}/excercises`).once('value', (result) => {
+        const student = result.val();
+        if (!student) {
+            return bot.sendMessage(message.chat.id, `Invalid student id ${studentId}`);
+        }
+
+        const eParts = student.email.split('@');
+        const initialLetters = eParts[0].slice(0, 2);
+        const lastLetters = eParts[0].slice(-2);
+
+        const filteredEmail = `${initialLetters}${'*'.repeat(eParts[0].length - 2)}${lastLetters}@${eParts[1]}`;
+        bot.sendMessage(message.chat.id, `We have sent you a confirmation link to ${filteredEmail}`);
+    });
 };
