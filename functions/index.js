@@ -1,10 +1,11 @@
+const nodemailer = require('nodemailer');
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const TelegramBot = require('node-telegram-bot-api');
 const get = require('lodash.get');
 
-admin.initializeApp(functions.config().firebase);
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN);
+admin.initializeApp(functions.config().firebase);
 
 const commands = {
     login: 'login',
@@ -12,6 +13,8 @@ const commands = {
     codewars: 'codewars',
     help: 'help',
 };
+
+const APP_NAME = 'test_pau';
 
 exports.telegramHook = functions.https.onRequest((req, res) => {
     const message = parseTelegramMessage(req.body.message);
@@ -35,6 +38,39 @@ exports.telegramHook = functions.https.onRequest((req, res) => {
         return res.sendStatus(400);
     }
 });
+
+function sendConfirmationCodeEmail(recipientEmail, recipientName) {
+    const gmailEmail = functions.config().gmail.email;
+    const gmailPassword = functions.config().gmail.password;
+
+    const mailTransport = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: gmailEmail,
+            pass: gmailPassword,
+        },
+    });
+
+    const mailOptions = {
+        from: `${APP_NAME} <noreply@firebase.com>`,
+        to: recipientEmail,
+    };
+
+    mailOptions.subject = 'Registration Code';
+    mailOptions.text = `Hey ${recipientName ||
+        ''}! Welcome to ${APP_NAME}. I hope you will enjoy our service.`;
+    mailTransport.sendMail(mailOptions).then((error, info) => {
+        let feedBackMsg = '';
+        if (error) {
+            feedBackMsg = error;
+            console.error(error);
+        } else {
+            feedBackMsg = `New code email sent to ${recipientEmail}`;
+            console.log('Message sent: %s', info.messageId);
+            console.log('New welcome email sent to:', recipientEmail);
+        }
+    });
+}
 
 const parseTelegramMessage = (message) => {
     const entity = get(message, 'entities.0', { offset: 0, length: 0 });
