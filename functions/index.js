@@ -51,7 +51,10 @@ const loginHandler = (message) => {
     const confirmationCode = v4();
     const confirmationUrl = `${functions.config().functions['email-confirm-url']}?code=${confirmationCode}&tid=${message.from.id}`;
 
-    studentRef.update({ confirmation_code: confirmationCode, confirmation_user: message.from.id });
+    studentRef.update({
+      confirmation_code: confirmationCode,
+      confirmation_user: message.from.id,
+    });
 
     emailService.sendConfirmationCodeEmail(student.email, confirmationUrl, () => {
       const eParts = student.email.split('@');
@@ -87,5 +90,31 @@ exports.telegramHook = functions.https.onRequest((req, res) => {
 });
 
 exports.emailConfirm = functions.https.onRequest((req, res) => {
-  res.sendStatus(200);
+  const { code, tid } = req.query;
+  const tgId = Number.parseInt(tid, 10);
+  let msg = '';
+
+  const studentsRef = admin.database().ref('/students');
+
+  studentsRef.once('value', (result) => {
+    const jsonResult = result.val();
+    const students = Object.keys(jsonResult).map(k => jsonResult[k]);
+    const student = students
+      .find(s => s.confirmation_code === code && s.confirmation_user === tgId);
+
+    if (!student) {
+      msg = 'Invalid confirmation code in email, please login again in @PauDevBot';
+      return res.status(400).send(msg);
+    }
+
+    admin
+      .database()
+      .ref(`/students/${student.student_id}`)
+      .update({ telegram_id: tgId, confirmation_user: null, confirmation_code: null })
+      .then(() => {
+        bot.sendMessage(tgId, "You're logged in! Tap /help to see your available commands");
+      });
+
+    res.status(200).send("You're logged in! Follow the instructions in @PauDevBot at telegram. You can now close this window.");
+  });
 });
