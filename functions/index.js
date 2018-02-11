@@ -3,17 +3,21 @@ const admin = require('firebase-admin');
 const TelegramBot = require('node-telegram-bot-api');
 const get = require('lodash.get');
 const { v4 } = require('uuid');
+const http = require('got');
 
 const { applicationName, commands } = require('./constants');
+const { formatExcercises } = require('./helpers/messageFormatter');
 
 const EmailService = require('./services/email.service');
+const CodewarsService = require('./services/codewars.service');
+const { diffExcercises } = require('./helpers/codewars.helper');
 
 const { email, password } = functions.config().gmail;
 const emailService = new EmailService(email, password, applicationName);
 
 const bot = new TelegramBot(functions.config().telegram.token);
+const logger = console;
 admin.initializeApp(functions.config().firebase);
-
 
 const parseTelegramMessage = (message) => {
   const entity = get(message, 'entities.0', { offset: 0, length: 0 });
@@ -67,6 +71,41 @@ const loginHandler = (message) => {
   });
 };
 
+const codewarsHandler = (message) => {
+  // TODO: we will repeat this a lot, move to somewhere else
+  const studentQuery = admin
+    .database()
+    .ref('/students')
+    .orderByChild('telegram_id')
+    .equalTo(message.from.id)
+    .limitToFirst(1);
+
+  studentQuery.once('value', (queryResult) => {
+    const codewarsService = new CodewarsService({ http, logger });
+    const studentKey = Object.keys(queryResult.val());
+    const student = queryResult.val()[studentKey];
+    logger.info('student', student);
+    const codewarsRef = admin.database().ref(`/codewars/${student.student_id}`);
+    const exercisesRef = admin.database().ref('/exercises');
+
+    // Serious refactor opportunity here
+    codewarsService
+      .getExcercises(student.codewars.user, student.codewars.api)
+      .then((result) => {
+        const codewarsResult = JSON.parse(result.body);
+        codewarsRef.set(codewarsResult);
+        return codewarsResult.data;
+      })
+      .then((codewarsExs) => {
+        exercisesRef.once('value', (result) => {
+          const fbExercises = result.val();
+          const diff = diffExcercises(fbExercises, codewarsExs);
+          bot.sendMessage(message.parsed.chatId, formatExcercises(diff), { parse_mode: 'Markdown', disable_web_page_preview: true });
+        });
+      });
+  });
+};
+
 exports.telegramHook = functions.https.onRequest((req, res) => {
   const message = parseTelegramMessage(req.body.message);
 
@@ -76,11 +115,14 @@ exports.telegramHook = functions.https.onRequest((req, res) => {
 
   if (!message.parsed.isBotCommand) {
     bot.sendMessage(message.parsed.chatId, `Can't understand text "${message.text}", use /help to see available commands`);
-    return res.sendStatus(400);
+    return res.sendStatus(200);
   }
   switch (message.parsed.command) {
     case commands.login:
       loginHandler(message);
+      break;
+    case commands.codewars:
+      codewarsHandler(message);
       break;
     default:
       bot.sendMessage(message.parsed.chatId, `Command "${message.text}" is not valid.`);
