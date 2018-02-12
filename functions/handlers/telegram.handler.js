@@ -60,6 +60,11 @@ const codewarsHandler = ({ message, firebaseDb, logger }) => new Promise((resolv
 
   studentQuery.once('value', (queryResult) => {
     const codewarsService = new CodewarsService({ http, logger });
+
+    if (!queryResult.val()) {
+      return resolve('Telegram account is not associated with an student. See /help');
+    }
+
     const studentKey = Object.keys(queryResult.val());
     const student = queryResult.val()[studentKey];
     const codewarsRef = firebaseDb.ref(`/codewars/${student.student_id}`);
