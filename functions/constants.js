@@ -3,6 +3,7 @@ exports.commands = {
   grades: 'grades',
   codewars: 'codewars',
   help: 'help',
+  start: 'start',
 };
 
 exports.applicationName = 'Pau Telegram Bot';

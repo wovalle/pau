@@ -92,6 +92,7 @@ const helpHandler = () => new Promise((resolve) => {
   const helpText = `
   *Thank you for using Pau!*
   You’re able to use the following commands:
+  
   /login _[studentid]_: Associates your telegram account with your student profile. You must call login with your *[studentid]*. E.g. /login 20091234
   You'll receive a confirmation link in your registered mail.
 
@@ -114,6 +115,7 @@ exports.handle = (props) => {
     case commands.codewars:
       return codewarsHandler(props);
     case commands.help:
+    case commands.start:
       return helpHandler(props);
     default:
       return defaultHandler(props);
