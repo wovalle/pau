@@ -88,12 +88,33 @@ const codewarsHandler = ({ message, firebaseDb, logger }) => new Promise((resolv
   });
 });
 
+const helpHandler = () => new Promise((resolve) => {
+  const helpText = `
+  *Thank you for using Pau!*
+  You’re able to use the following commands:
+  /login _[studentid]_: Associates your telegram account with your student profile. You must call login with your *[studentid]*. E.g. /login 20091234
+  You'll receive a confirmation link in your registered mail.
+
+  /codewars Retrieves the list of codewars excercises in each batch with it’s current status:
+    
+  💯: Exercise already done
+  🕑: Exercise done late
+  🔥: Exercise is not yet done
+
+  *Coming soon*
+  /grades Returns all the grades currently digitized.`;
+
+  resolve(helpText);
+});
+
 exports.handle = (props) => {
   switch (props.message.command) {
     case commands.login:
       return loginHandler(props);
     case commands.codewars:
       return codewarsHandler(props);
+    case commands.help:
+      return helpHandler(props);
     default:
       return defaultHandler(props);
   }
