@@ -15,6 +15,7 @@
     "firebase-functions": "^0.8.1",
     "got": "^8.0.3",
     "lodash.get": "^4.4.2",
+    "moment": "^2.20.1",
     "node-telegram-bot-api": "^0.30.0",
     "nodemailer": "^4.4.2",
     "uuid": "^3.2.1"

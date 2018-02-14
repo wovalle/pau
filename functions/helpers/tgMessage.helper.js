@@ -1,4 +1,5 @@
 const get = require('lodash.get');
+const moment = require('moment');
 
 exports.flattenTgMessage = (message) => {
   const entity = get(message, 'entities.0', { offset: 0, length: 0 });
@@ -28,7 +29,10 @@ exports.codewarsExercises = (exercises) => {
   }, {});
 
   return Object.keys(batchs).reduce((acc, cur) => {
-    const rows = batchs[cur].map(ex => `[${ex.name}](${ex.url}) (${status[ex.status]})`);
+    const rows = batchs[cur].map((ex) => {
+      const formattedDate = ex.completedAt ? moment(ex.completedAt).format('DD/MM HH:mm') : '☠️';
+      return `[${ex.name}](${ex.url}) *(${formattedDate})* (${status[ex.status]})`;
+    });
 
     // eslint-disable-next-line no-param-reassign
     acc += `*Batch #${cur}* \n${rows.join('\n')}\n\n`;

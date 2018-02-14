@@ -1,3 +1,5 @@
+const moment = require('moment');
+
 exports.diffExcercises = (fbExcercises, codewars) => {
   const exercises = Object.assign({}, fbExcercises);
 
@@ -5,7 +7,7 @@ exports.diffExcercises = (fbExcercises, codewars) => {
     .filter(ex => ex.completedLanguages.includes('python'))
     .forEach((ex) => {
       if (exercises[ex.slug]) {
-        exercises[ex.slug].completedAt = new Date(ex.completedAt);
+        exercises[ex.slug].completedAt = ex.completedAt ? moment(ex.completedAt) : null;
         exercises[ex.slug].completedLanguages = ex.completedLanguages;
       }
     });
@@ -14,7 +16,7 @@ exports.diffExcercises = (fbExcercises, codewars) => {
     const currentEx = exercises[slug];
     // eslint-disable-next-line no-nested-ternary
     currentEx.status = currentEx.completedAt ?
-      new Date(currentEx.due_date) > currentEx.completedAt ? 'done' : 'late' : 'missing';
+      moment(currentEx.due_date.replace(/\//g, '-')).endOf('day') > currentEx.completedAt ? 'done' : 'late' : 'missing';
     return currentEx;
   });
 };
