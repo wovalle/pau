@@ -7,7 +7,7 @@ exports.diffExcercises = (fbExcercises, codewars) => {
     .filter(ex => ex.completedLanguages.includes('python'))
     .forEach((ex) => {
       if (exercises[ex.slug]) {
-        exercises[ex.slug].completedAt = ex.completedAt ? moment(ex.completedAt) : null;
+        exercises[ex.slug].completedAt = ex.completedAt ? moment(ex.completedAt).add(-4, 'h') : null;
         exercises[ex.slug].completedLanguages = ex.completedLanguages;
       }
     });
