@@ -1,6 +1,9 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const TelegramBot = require('node-telegram-bot-api');
+const CodewarsService = require('./services/codewars.service');
+const http = require('got');
+
 
 const { genericError, flattenTgMessage } = require('./helpers/tgMessage.helper');
 
@@ -10,6 +13,19 @@ const bot = new TelegramBot(functions.config().telegram.token);
 const logger = console;
 
 admin.initializeApp(functions.config().firebase);
+
+exports.codewarsBridge = functions.https.onRequest((req, res) => {
+  const { user, key } = req.query;
+
+  const codewarsService = new CodewarsService({ http, logger });
+
+  codewarsService.getExcercises(user, key)
+    .then(result => res.status(200).send(result.body))
+    .catch((err) => {
+      logger.error(err);
+      res.status(500).send('An error has occurred, please contact the System Administrator');
+    });
+});
 
 exports.telegramHook = functions.https.onRequest((req, res) => {
   const message = flattenTgMessage(req.body.message);
