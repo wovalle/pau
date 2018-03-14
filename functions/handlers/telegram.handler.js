@@ -1,5 +1,6 @@
 const { v4 } = require('uuid');
 const http = require('got');
+const Q = require('p-queue');
 
 const EmailService = require('../services/email.service');
 const CodewarsService = require('../services/codewars.service');
@@ -88,6 +89,51 @@ const codewarsHandler = ({ message, firebaseDb, logger }) => new Promise((resolv
   });
 });
 
+const codewarsAllHandler = ({ message, firebaseDb, logger }) => new Promise((resolve) => {
+  // TODO: we will repeat this a lot, move to somewhere else
+  const studentsQuery = firebaseDb
+    .ref('/students');
+
+  studentsQuery.once('value', (queryResult) => {
+    const codewarsService = new CodewarsService({ http, logger });
+
+    if (!queryResult.val()) {
+      return resolve('Could not retrieve list of students');
+    }
+
+    const students = Object.keys(queryResult.val()).map(k => queryResult.val()[k]);
+    const requester = students.find(s => s.telegram_id === message.fromId);
+
+    if (!requester.admin) {
+      return resolve('Only admins can execute this command');
+    }
+
+    const queue = new Q({ concurrency: 1 });
+    const errors = [];
+
+    students.forEach(s => {
+      queue.add(() => {
+        return codewarsService.getExcercises(s.codewars.user, s.codewars.api)
+          .then((result) => {
+            const codewarsRef = firebaseDb.ref(`/codewars/${s.student_id}`);
+            const codewarsResult = JSON.parse(result.body);
+            codewarsRef.set(codewarsResult);
+          })
+          .catch(err => errors.push({ error: err, student: s.student_id }));
+      });
+    });
+
+    queue.onIdle().then(() => {
+      resolve(`
+      Updated codewars info to all students.
+      Errors: ${errors.length}
+      ----------
+      ${errors.map(e => `Student ${e.student_id} got ${e.message}`)}
+      `);
+    });
+  });
+});
+
 const helpHandler = () => new Promise((resolve) => {
   const helpText = `
   *Thank you for using Pau!*
@@ -114,6 +160,8 @@ exports.handle = (props) => {
       return loginHandler(props);
     case commands.codewars:
       return codewarsHandler(props);
+    case commands.codewars_all:
+      return codewarsAllHandler(props);
     case commands.help:
     case commands.start:
       return helpHandler(props);
