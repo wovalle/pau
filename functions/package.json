@@ -18,6 +18,7 @@
     "moment": "^2.20.1",
     "node-telegram-bot-api": "^0.30.0",
     "nodemailer": "^4.4.2",
+    "p-queue": "^2.3.1",
     "uuid": "^3.2.1"
   },
   "devDependencies": {

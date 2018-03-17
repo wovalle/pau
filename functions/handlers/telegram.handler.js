@@ -54,20 +54,36 @@ const defaultHandler = ({ message }) => new Promise((resolve) => {
 const codewarsHandler = ({ message, firebaseDb, logger }) => new Promise((resolve) => {
   // TODO: we will repeat this a lot, move to somewhere else
   const studentQuery = firebaseDb
-    .ref('/students')
-    .orderByChild('telegram_id')
-    .equalTo(message.fromId)
-    .limitToFirst(1);
+    .ref('/students');
 
   studentQuery.once('value', (queryResult) => {
     const codewarsService = new CodewarsService({ http, logger });
 
     if (!queryResult.val()) {
-      return resolve('Telegram account is not associated with an student. See /help');
+      return resolve('Could not retrieve list of students');
     }
 
-    const studentKey = Object.keys(queryResult.val());
-    const student = queryResult.val()[studentKey];
+    const students = Object.keys(queryResult.val()).map(k => queryResult.val()[k]);
+    const requester = students.find(s => s.telegram_id === message.fromId);
+
+    const withQueryStudent = message.text.length > '/codewars'.length;
+    const querySchoolId = /\d{8}/.exec(message.text);
+    const queryStudentId = querySchoolId
+      && message.text.slice(querySchoolId.index, querySchoolId.index + 8).trim();
+
+    let student = {};
+
+    if (withQueryStudent && !requester.admin) {
+      return resolve('Only admins can execute this command');
+    } else if (withQueryStudent && requester.admin) {
+      student = students.find(s => s.student_id === Number.parseInt(queryStudentId, 10));
+      if (!student) {
+        return resolve('Student is not valid');
+      }
+    } else {
+      student = requester;
+    }
+
     const codewarsRef = firebaseDb.ref(`/codewars/${student.student_id}`);
     const exercisesRef = firebaseDb.ref('/exercises');
 
@@ -111,16 +127,14 @@ const codewarsAllHandler = ({ message, firebaseDb, logger }) => new Promise((res
     const queue = new Q({ concurrency: 1 });
     const errors = [];
 
-    students.forEach(s => {
-      queue.add(() => {
-        return codewarsService.getExcercises(s.codewars.user, s.codewars.api)
-          .then((result) => {
-            const codewarsRef = firebaseDb.ref(`/codewars/${s.student_id}`);
-            const codewarsResult = JSON.parse(result.body);
-            codewarsRef.set(codewarsResult);
-          })
-          .catch(err => errors.push({ error: err, student: s.student_id }));
-      });
+    students.forEach((s) => {
+      queue.add(() => codewarsService.getExcercises(s.codewars.user, s.codewars.api)
+        .then((result) => {
+          const codewarsRef = firebaseDb.ref(`/codewars/${s.student_id}`);
+          const codewarsResult = JSON.parse(result.body);
+          codewarsRef.set(codewarsResult);
+        })
+        .catch(err => errors.push({ error: err, student: s.student_id })));
     });
 
     queue.onIdle().then(() => {
